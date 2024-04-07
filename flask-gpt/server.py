@@ -4,7 +4,7 @@ from transformers import GPT2Tokenizer, GPT2LMHeadModel
 import os
 app = Flask(__name__)
 cors = CORS(app, resources={r"/generate": {"origins": "*"}, r"/":{"origins": "*"} })
-
+import torch
 
 # Список доступных моделей
 model_names = ['gpt2', 'gpt2-medium']
@@ -48,7 +48,8 @@ def generate_text():
     model = models[model_name]
 
     input_ids = tokenizer.encode(text, return_tensors='pt')
-    output = model.generate(input_ids, max_length=max_length, num_return_sequences=1)
+    attention_mask = torch.ones(input_ids.shape, dtype=torch.long)  # Создаем тензор attention_mask
+    output = model.generate(input_ids, attention_mask=attention_mask, max_length=max_length, num_return_sequences=1)
 
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     return jsonify({'generated_text': generated_text})

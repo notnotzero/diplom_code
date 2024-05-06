@@ -6,13 +6,12 @@ import cv2
 import onnx
 import onnxruntime as ort
 application = Flask(__name__)
-import psutil
 
-with open('../synset.txt', 'r') as f:
+with open('./synset.txt', 'r') as f:
     labels = [l.rstrip() for l in f]
 
 # Load the ONNX model
-model_path = '../resnet50-v1-12-int8.onnx'
+model_path = './resnet50-v1-12-int8.onnx'
 model = onnx.load(model_path)
 session = ort.InferenceSession(model.SerializeToString())
 
@@ -42,9 +41,6 @@ def predict():
     preds = session.run(None, ort_inputs)[0]
     preds = np.squeeze(preds)
     a = np.argsort(preds)[::-1]
-    process = psutil.Process()
-    memory_info = process.memory_info()
-    print( f"Memory usage: {memory_info.rss / (1024 ** 2):.2f} MB")
     result = {'class': labels[a[0]], 'probability': float(preds[a[0]])}
     return jsonify(result)
 

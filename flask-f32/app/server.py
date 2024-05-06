@@ -10,9 +10,10 @@ application = Flask(__name__)
 with open('./synset.txt', 'r') as f:
     labels = [l.rstrip() for l in f]
 
-# Load the ONNX model
+# Загрузка модели
 model_path = './resnet50-v1-12.onnx'
 model = onnx.load(model_path)
+# Создание сессии для инференса модели
 session = ort.InferenceSession(model.SerializeToString())
 
 @application.route('/predict', methods=['POST'])
@@ -20,11 +21,11 @@ def predict():
     data = request.json
     url = data['image_url']
 
-    # Download image from URL
+    # Загрузка входного изображения
     img = Image.open(requests.get(url, stream=True).raw)
     img = np.array(img.convert('RGB'))
 
-    # Preprocess image
+    # Препроцессинг входного изображения
     img = img / 255.
     img = cv2.resize(img, (256, 256))
     h, w = img.shape[0], img.shape[1]
@@ -36,7 +37,7 @@ def predict():
     img = img.astype(np.float32)
     img = np.expand_dims(img, axis=0)
 
-    # Make prediction
+    # Предсказание
     ort_inputs = {session.get_inputs()[0].name: img}
     preds = session.run(None, ort_inputs)[0]
     preds = np.squeeze(preds)

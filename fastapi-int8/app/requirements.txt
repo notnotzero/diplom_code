@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+requests
+Pillow
+numpy
+opencv-python
+onnx
+onnxruntime
+opencv-python

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ONNX Model Inference</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script>
+      const filePath = "synset.txt";
+
+      // Функция для получения содержимого файла
+      async function getFileContent(filePath) {
+        try {
+          // Получаем содержимое файла с помощью fetch
+          const response = await fetch(filePath);
+          // Если запрос успешен, получаем текст из ответа
+          if (response.ok) {
+            const data = await response.text();
+            // Возвращаем содержимое файла
+            return data;
+          } else {
+            // Если возникает ошибка при получении файла, выводим сообщение об ошибке
+            console.error("Ошибка при получении файла:", response.statusText);
+            return null;
+          }
+        } catch (error) {
+          // Если возникает ошибка при выполнении запроса, выводим сообщение об ошибке
+          console.error("Ошибка при получении файла:", error);
+          return null;
+        }
+      }
+      if (!document.dict) {
+        console.log("here!!");
+        // Вызов функции для получения содержимого файла
+        getFileContent(filePath)
+          .then((data) => {
+            if (data) {
+              // Вывод содержимого файла
+              const lines = data.split("\n").map((line) => line.trim());
+              document.dict = lines;
+            }
+          })
+          .catch((error) => {
+            console.error("Ошибка при чтении файла:", error);
+          });
+      }
+
+      function convertRGBAtoRGB(rgbaTensor) {
+        const shape = rgbaTensor.dims; // Получаем размеры тензора
+        const [batchSize, channels, height, width] = shape;
+        // Создаем новый тензор RGB
+        const rgbTensor = new ort.Tensor(
+          "float32",
+          new Float32Array(batchSize * 3 * height * width),
+          [batchSize, 3, height, width]
+        );
+
+        // Проходимся по каждому пикселю изображения
+        for (let b = 0; b < batchSize; b++) {
+          for (let h = 0; h < height; h++) {
+            for (let w = 0; w < width; w++) {
+              // Копируем значения RGB из тензора RGBA в новый тензор RGB
+              for (let c = 0; c < 3; c++) {
+                rgbTensor.data[
+                  b * 3 * height * width + c * height * width + h * width + w
+                ] =
+                  rgbaTensor.data[
+                    b * 4 * height * width + c * height * width + h * width + w
+                  ];
+              }
+            }
+          }
+        }
+
+        return rgbTensor;
+      }
+
+      async function predictImage1000() {
+        const imgElement = document.getElementById("inputImage");
+        const resultElement = document.getElementById("result");
+
+        try {
+          // Load ONNX model
+          const modelPath = "./resnet50-v1-12.onnx";
+          if (!document.session) {
+            document.session = await ort.InferenceSession.create(modelPath, {
+              executionProviders: ["webgl"],
+            });
+          }
+
+          const resizedTensor = await ort.Tensor.fromImage(
+            imgElement,
+            (options = {
+              resizedWidth: 224,
+              resizedHeight: 224,
+            })
+          );
+          let rgbTensor = convertRGBAtoRGB(resizedTensor);
+          const measurements = [];
+          for (let i = 0; i < 1000; i++) {
+            console.log(i);
+            const startTime = performance.now();
+            const feeds = { data: rgbTensor };
+            const output = await document.session.run(feeds);
+            const endTime = performance.now();
+
+            measurements.push((endTime - startTime).toFixed(2));
+          }
+          // Run inference
+
+          document.measurements = measurements;
+          predictions = output.resnetv17_dense0_fwd.cpuData;
+          // Display inference result
+          const maxIndex = predictions.indexOf(Math.max(...predictions));
+          resultElement.textContent = `Probability: ${maxIndex.toFixed(
+            4
+          )}, Inference Time: ${(endTime - startTime).toFixed(2)} ms`;
+        } catch (error) {
+          resultElement.textContent = `Error: ${error.message}`;
+        }
+      }
+
+      async function predictImage() {
+        const imgElement = document.getElementById("inputImage");
+        const resultElement = document.getElementById("result");
+
+        try {
+          // Load ONNX model
+          const modelPath = "./resnet50-v1-12.onnx";
+          if (!document.session) {
+            document.session = await ort.InferenceSession.create(modelPath);
+          }
+
+          const resizedTensor = await ort.Tensor.fromImage(
+            imgElement,
+            (options = {
+              resizedWidth: 224,
+              resizedHeight: 224,
+            })
+          );
+          let rgbTensor = convertRGBAtoRGB(resizedTensor);
+
+          // Run inference
+          const startTime = performance.now();
+          const feeds = { data: rgbTensor };
+          const output = await document.session.run(feeds);
+          const endTime = performance.now();
+          predictions = output.resnetv17_dense0_fwd.cpuData;
+          // Display inference result
+          const maxIndex = predictions.indexOf(Math.max(...predictions));
+          resultElement.textContent = `Probability: ${Math.max(
+            ...predictions
+          ).toFixed(4)}, Inference Time: ${(endTime - startTime).toFixed(
+            2
+          )} ms`;
+        } catch (error) {
+          resultElement.textContent = `Error: ${error.message}`;
+        }
+      }
+    </script>
+  </head>
+  <body
+    style="
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    "
+  >
+    <br />
+    <img
+      id="inputImage"
+      style="max-width: 500px"
+      src="./bird.jpeg"
+      crossorigin="anonymous"
+    />
+    <p>Model: resnet50-v1-12</p>
+
+    <button onclick="predictImage()" style="max-width: 100px">Predict</button>
+    <button
+      onclick="predictImage1000()"
+      style="max-width: 100px; margin-top: 10px"
+    >
+      Predict 1000
+    </button>
+    <br />
+    <div id="result"></div>
+  </body>
+</html>
